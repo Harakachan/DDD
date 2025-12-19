@@ -1,26 +1,54 @@
 import streamlit as st
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
+
+# ================== PAGE CONFIG (ต้องอยู่บนสุด) ==================
+st.set_page_config(
+    page_title="Waste Intelligence Dashboard",
+    page_icon="♻️",
+    layout="wide"
+)
+
+# ================== IMPORT ==================
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_squared_error
 
-# =====================
-# Title
-# =====================
-st.title("Waste Prediction using Linear Regression")
+# ================== CSS ==================
+st.markdown("""
+<style>
+body {
+    background-color: #0e1117;
+}
+.big-title {
+    font-size: 42px;
+    font-weight: 800;
+    color: #2ECC71;
+}
+.section-title {
+    font-size: 26px;
+    font-weight: 700;
+    margin-top: 30px;
+}
+.card {
+    background-color: #161b22;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.4);
+}
+</style>
+""", unsafe_allow_html=True)
 
+# ================== TITLE ==================
+st.markdown('<div class="big-title">♻️ Waste Intelligence System</div>', unsafe_allow_html=True)
+st.write("Linear Regression + Waste Analytics Dashboard")
 
-df = pd.read_csv("sustainable_waste_management_dataset_2024.csv")
+# ================== LOAD DATA ==================
+CSV_FILE = "sustainable_waste_management_dataset_2024.csv"
+df = pd.read_csv(CSV_FILE)
 
-st.subheader("Dataset Preview")
-st.dataframe(df.head())
-
-# =====================
-# Feature Selection
-# =====================
-selected_features = [
+# ================== MODEL ==================
+features = [
     'population',
     'recyclable_kg',
     'organic_kg',
@@ -33,91 +61,68 @@ selected_features = [
     'rain_mm'
 ]
 
-X = df[selected_features]
-y = df['waste_kg']
+df_model = df[features + ['waste_kg']].dropna()
 
-# =====================
-# Handle Missing Values
-# =====================
-df_combined = pd.concat([X, y], axis=1)
-df_combined.dropna(inplace=True)
+X = df_model[features]
+y = df_model['waste_kg']
 
-X = df_combined[selected_features]
-y = df_combined['waste_kg']
-
-st.write("Rows after dropna:", df_combined.shape[0])
-
-# =====================
-# Train/Test Split
-# =====================
-X_train, X_test, Y_train, Y_test = train_test_split(
+X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
-# =====================
-# Train Model
-# =====================
 model = LinearRegression()
-model.fit(X_train, Y_train)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
 
-# =====================
-# Prediction
-# =====================
-Y_pred = model.predict(X_test)
+# ================== METRICS ==================
+st.markdown('<div class="section-title">📊 Model Performance</div>', unsafe_allow_html=True)
 
-# =====================
-# Metrics (แทน print)
-# =====================
-st.subheader("Model Performance")
+c1, c2 = st.columns(2)
+with c1:
+    st.metric("R² Score", f"{r2_score(y_test, y_pred):.4f}")
+with c2:
+    st.metric("Mean Squared Error", f"{mean_squared_error(y_test, y_pred):,.2f}")
 
-r2 = r2_score(Y_test, Y_pred)
-mse = mean_squared_error(Y_test, Y_pred)
+# ================== SCATTER PLOT ==================
+st.markdown('<div class="section-title">🔵 Predicted vs Actual Waste</div>', unsafe_allow_html=True)
 
-st.write("R squared:", r2)
-st.write("Mean Squared Error:", mse)
+fig1, ax1 = plt.subplots(figsize=(7, 6))
+ax1.scatter(y_test, y_pred, s=40, alpha=0.8)
+min_v = min(y_test.min(), y_pred.min())
+max_v = max(y_test.max(), y_pred.max())
+ax1.plot([min_v, max_v], [min_v, max_v], '--', lw=2)
+ax1.set_xlabel("Actual Waste (kg)")
+ax1.set_ylabel("Predicted Waste (kg)")
+ax1.grid(True, alpha=0.3)
 
-# =====================
-# Plot (เหมือน Colab)
-# =====================
-st.subheader("Predicted vs Actual Waste")
+st.pyplot(fig1)
 
-fig, ax = plt.subplots(figsize=(10, 6))
+# ================== BAR CHART: DAY OF WEEK ==================
+st.markdown('<div class="section-title">📅 Average Waste by Day of Week</div>', unsafe_allow_html=True)
 
-ax.scatter(
-    Y_test.values,
-    Y_pred,
-    alpha=0.7
-)
+df["date"] = pd.to_datetime(df["date"])
+df["day_of_week"] = df["date"].dt.day_name()
 
-ax.plot(
-    [y.min(), y.max()],
-    [y.min(), y.max()],
-    '--',
-    color='pink',
-    lw=2,
-    label='Perfect Prediction Line'
-)
+order = [
+    "Monday", "Tuesday", "Wednesday",
+    "Thursday", "Friday", "Saturday", "Sunday"
+]
 
-ax.set_xlabel("Actual waste")
-ax.set_ylabel("Predicted waste")
-ax.set_title("Predicted vs Actual waste")
-ax.legend()
-ax.grid(True)
-
-st.pyplot(fig)
-
-st.subheader("Average Waste per Day of Week")
-
-avg_day_df = (
+avg_waste = (
     df.groupby("day_of_week")["waste_kg"]
       .mean()
-      .reindex([
-          "Monday", "Tuesday", "Wednesday",
-          "Thursday", "Friday", "Saturday", "Sunday"
-      ])
-      .reset_index()
+      .reindex(order)
 )
 
-st.bar_chart(
-    avg_day_df.set_index("day_of_week")
-)
+fig2, ax2 = plt.subplots(figsize=(9, 5))
+ax2.bar(avg_waste.index, avg_waste.values)
+ax2.set_xlabel("Day of Week")
+ax2.set_ylabel("Average Waste (kg)")
+ax2.set_title("Average Waste per Day (Mon–Sun)")
+ax2.grid(axis="y", alpha=0.3)
+
+st.pyplot(fig2)
+
+# ================== FOOTER ==================
+st.markdown("---")
+st.caption("Built for competition-grade analytics • Linear Regression • Streamlit")
