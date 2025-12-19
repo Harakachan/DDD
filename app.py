@@ -105,3 +105,19 @@ ax.legend()
 ax.grid(True)
 
 st.pyplot(fig)
+
+st.subheader("Average Waste per Day of Week")
+
+avg_day_df = (
+    df.groupby("day_of_week")["waste_kg"]
+      .mean()
+      .reindex([
+          "Monday", "Tuesday", "Wednesday",
+          "Thursday", "Friday", "Saturday", "Sunday"
+      ])
+      .reset_index()
+)
+
+st.bar_chart(
+    avg_day_df.set_index("day_of_week")
+)
